@@ -154,7 +154,13 @@
 <body>
 
 <div id="game-container">
+    <div id="game-container">
+
     <button id="audio-toggle">🔊 Musik: ON</button>
+
+    <!-- LOGO GAME -->
+    <img id="game-logo" src="logo1.png" alt="Logo Game">
+
     <canvas id="gameCanvas" width="800" height="450"></canvas>
 
     <!-- UI Overlay Menu Utama / Game Over -->
@@ -416,7 +422,7 @@ function drawBackground() {
         ctx.beginPath();
         ctx.arc(c.x, c.y, 20, 0, Math.PI * 2);
         ctx.arc(c.x + 15, c.y - 10, 25, 0, Math.PI * 2);
-        ctx.arc(c.x + 35, c.y, 20, 0, Math.PI * 2);
+         ctx.arc(c.x + 35, c.y, 20, 0, Math.PI * 2);
         ctx.fill();
         c.x -= c.speed;
         if (c.x < -60) c.x = canvas.width + 60;
