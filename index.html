@@ -1,1 +1,682 @@
-test
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Kelinci Lompat - Petualangan Wortel</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #1a1a2e;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #87CEEB;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* UI Overlay */
+        .ui-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        .logo-text {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #FF9F43;
+            text-shadow: 3px 3px 0px #EE5253, 6px 6px 0px #000;
+            letter-spacing: 2px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #10ac84, #1dd1a1);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(29, 209, 161, 0.4);
+            transition: all 0.2s ease;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 7px 20px rgba(29, 209, 161, 0.6);
+        }
+        .how-to-play {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin-top: 15px;
+            max-width: 80%;
+            text-align: center;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* Mobile Joystick Zone */
+        #joystick-zone {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: none; /* Dynamic via JS */
+            touch-action: none;
+            z-index: 5;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 35px;
+            left: 35px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #jump-btn-mobile {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            width: 70px;
+            height: 70px;
+            background: rgba(238, 82, 83, 0.8);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+            color: white;
+            z-index: 5;
+            touch-action: none;
+        }
+        #audio-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #fff;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            z-index: 6;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <button id="audio-toggle">🔊 Musik: ON</button>
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+    <!-- UI Overlay Menu Utama / Game Over -->
+    <div id="ui-menu" class="ui-panel">
+        <div class="logo-container">
+            <!-- Logo SVG Kelinci -->
+            <svg width="60" height="60" viewBox="0 0 100 100">
+                <ellipse cx="35" cy="30" rx="8" ry="25" fill="#FFF" transform="rotate(-10 35 30)"/>
+                <ellipse cx="35" cy="30" rx="4" ry="18" fill="#FFA9A9" transform="rotate(-10 35 30)"/>
+                <ellipse cx="65" cy="30" rx="8" ry="25" fill="#FFF" transform="rotate(10 65 30)"/>
+                <ellipse cx="65" cy="30" rx="4" ry="18" fill="#FFA9A9" transform="rotate(10 65 30)"/>
+                <circle cx="50" cy="60" r="25" fill="#FFF"/>
+                <circle cx="42" cy="55" r="3" fill="#000"/>
+                <circle cx="58" cy="55" r="3" fill="#000"/>
+                <polygon points="50,62 46,67 54,67" fill="#FF9F43"/>
+            </svg>
+            <h1 class="logo-text">KELINCI LOMPAT</h1>
+        </div>
+        
+        <div class="how-to-play">
+            <strong>📖 Cara Bermain:</strong><br>
+            • <b>PC/Laptop:</b> Gunakan Panah Kiri/Kanan (A/D) untuk bergerak, Spasi/Panah Atas (W) untuk Lompat.<br>
+            • <b>HP/Tablet:</b> Gunakan Virtual Joystick di kiri & tombol Lompat di kanan.<br>
+            • Ambil <b>Wortel (+50 Poin)</b> dan hindari <b>Batu & Semak</b>!
+        </div>
+
+        <button id="start-btn" class="btn">Mulai Bermain</button>
+    </div>
+
+    <!-- Controls khusus Layar Sentuh -->
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <div id="jump-btn-mobile">LOMPAT</div>
+</div>
+
+<script>
+// --- AUDIO SYNTHESIZER (Tanpa File Eksternal) ---
+class SoundManager {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.muted = false;
+        this.bgmTimer = null;
+    }
+
+    playJump() {
+        if (this.muted) return;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+
+    playCarrot() {
+        if (this.muted) return;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+
+    playGameOver() {
+        if (this.muted) return;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.4);
+    }
+
+    startBGM() {
+        if (this.bgmTimer || this.muted) return;
+        const notes = [261.63, 329.63, 392.00, 523.25]; // C, E, G, C
+        let step = 0;
+        this.bgmTimer = setInterval(() => {
+            if (this.muted) return;
+            let osc = this.ctx.createOscillator();
+            let gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(notes[step % notes.length], this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.2);
+            step++;
+        }, 300);
+    }
+
+    stopBGM() {
+        clearInterval(this.bgmTimer);
+        this.bgmTimer = null;
+    }
+}
+
+const audio = new SoundManager();
+
+// --- GAME ENGINE ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+let score = 0;
+let level = 1;
+let speed = 4;
+let frameCount = 0;
+
+// Karakter Kelinci
+const rabbit = {
+    x: 100,
+    y: 300,
+    width: 40,
+    height: 40,
+    vy: 0,
+    vx: 0,
+    gravity: 0.6,
+    jumpPower: -12,
+    isGrounded: false,
+    facing: 'right',
+    animFrame: 0,
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        if (this.facing === 'left') ctx.scale(-1, 1);
+
+        // Efek Squash/Stretch saat lompat
+        let stretch = this.isGrounded ? 1 : 1.2;
+        let squash = this.isGrounded ? 1 : 0.8;
+
+        // Badan
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(0, 5, 18 * squash, 15 * stretch, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Kepala
+        ctx.beginPath();
+        ctx.arc(8, -8, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Telinga
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(4, -24, 4, 12, -0.1, 0, Math.PI * 2);
+        ctx.ellipse(12, -24, 4, 12, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFB6C1';
+        ctx.beginPath();
+        ctx.ellipse(4, -24, 2, 8, -0.1, 0, Math.PI * 2);
+        ctx.ellipse(12, -24, 2, 8, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mata & Hidung
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(12, -10, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FF6B6B';
+        ctx.beginPath();
+        ctx.arc(18, -7, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ekor
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.arc(-18, 5, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    },
+    update() {
+        this.vy += this.gravity;
+        this.y += this.vy;
+        this.x += this.vx;
+
+        // Batasi di dalam canvas
+        if (this.x < 0) this.x = 0;
+        if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+
+        // Cek Tanah
+        if (this.y >= 330) {
+            this.y = 330;
+            this.vy = 0;
+            this.isGrounded = true;
+        } else {
+            this.isGrounded = false;
+        }
+    },
+    jump() {
+        if (this.isGrounded) {
+            this.vy = this.jumpPower;
+            this.isGrounded = false;
+            audio.playJump();
+        }
+    }
+};
+
+// Array Rintangan dan Item
+let obstacles = [];
+let carrots = [];
+let clouds = [
+    { x: 100, y: 50, speed: 0.5 },
+    { x: 400, y: 80, speed: 0.3 },
+    { x: 700, y: 40, speed: 0.6 }
+];
+
+// --- LOGIKA SPAWN ---
+function spawnObstacle() {
+    const type = Math.random() > 0.5 ? 'rock' : 'bush';
+    obstacles.push({
+        x: canvas.width + 50,
+        y: type === 'rock' ? 345 : 335,
+        width: type === 'rock' ? 35 : 40,
+        height: type === 'rock' ? 25 : 35,
+        type: type
+    });
+}
+
+function spawnCarrot() {
+    carrots.push({
+        x: canvas.width + 50,
+        y: 220 + Math.random() * 80,
+        width: 20,
+        height: 25
+    });
+}
+
+// --- RENDER BACKGROUND ---
+function drawBackground() {
+    // Langit Gradasi
+    let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#74b9ff');
+    gradient.addColorStop(1, '#a29bfe');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Awan (Paralaks)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    clouds.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 20, 0, Math.PI * 2);
+        ctx.arc(c.x + 15, c.y - 10, 25, 0, Math.PI * 2);
+        ctx.arc(c.x + 35, c.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        c.x -= c.speed;
+        if (c.x < -60) c.x = canvas.width + 60;
+    });
+
+    // Gunung Jauh
+    ctx.fillStyle = '#6c5ce7';
+    ctx.beginPath();
+    ctx.moveTo(0, 370);
+    ctx.lineTo(150, 200);
+    ctx.lineTo(350, 370);
+    ctx.lineTo(500, 230);
+    ctx.lineTo(700, 370);
+    ctx.lineTo(800, 280);
+    ctx.lineTo(800, 370);
+    ctx.fill();
+
+    // Tanah / Rumput
+    ctx.fillStyle = '#2ed573';
+    ctx.fillRect(0, 370, canvas.width, 80);
+    ctx.fillStyle = '#26af5f';
+    ctx.fillRect(0, 370, canvas.width, 10);
+}
+
+// --- RENDER OBJECTS ---
+function drawObstacles() {
+    obstacles.forEach(o => {
+        if (o.type === 'rock') {
+            ctx.fillStyle = '#8395a7';
+            ctx.beginPath();
+            ctx.moveTo(o.x, o.y + o.height);
+            ctx.lineTo(o.x + 5, o.y);
+            ctx.lineTo(o.x + o.width - 5, o.y);
+            ctx.lineTo(o.x + o.width, o.y + o.height);
+            ctx.fill();
+        } else { // Bush
+            ctx.fillStyle = '#10ac84';
+            ctx.beginPath();
+            ctx.arc(o.x + 15, o.y + 15, 18, 0, Math.PI * 2);
+            ctx.arc(o.x + 28, o.y + 15, 12, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        o.x -= speed;
+    });
+}
+
+function drawCarrots() {
+    carrots.forEach(c => {
+        // Badan Wortel
+        ctx.fillStyle = '#ff9f43';
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.lineTo(c.x + c.width, c.y);
+        ctx.lineTo(c.x + c.width / 2, c.y + c.height);
+        ctx.fill();
+        // Daun
+        ctx.fillStyle = '#10ac84';
+        ctx.fillRect(c.x + c.width / 2 - 3, c.y - 6, 6, 6);
+
+        c.x -= speed;
+    });
+}
+
+function drawHUD() {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.shadowColor = 'black';
+    ctx.shadowBlur = 4;
+    ctx.fillText(`Skor: ${Math.floor(score)}`, 20, 35);
+    ctx.fillText(`Level: ${level}`, 20, 60);
+    ctx.shadowBlur = 0;
+}
+
+// --- UPDATE & COLLISION ---
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    frameCount++;
+    score += 0.05; // Skor berjalan seiring waktu
+
+    // Kenaikan Level tiap 100 Poin
+    level = Math.floor(score / 100) + 1;
+    speed = 4 + (level * 0.8);
+
+    rabbit.update();
+
+    // Spawning Logic
+    if (frameCount % Math.max(60, Math.floor(140 - speed * 5)) === 0) {
+        if (Math.random() > 0.3) spawnObstacle();
+    }
+    if (frameCount % 180 === 0) {
+        spawnCarrot();
+    }
+
+    // Cek Tabrakan Rintangan (Game Over)
+    obstacles.forEach(o => {
+        if (
+            rabbit.x < o.x + o.width &&
+            rabbit.x + rabbit.width > o.x &&
+            rabbit.y < o.y + o.height &&
+            rabbit.y + rabbit.height > o.y
+        ) {
+            gameOver();
+        }
+    });
+
+    // Cek Koleksi Wortel
+    carrots.forEach((c, index) => {
+        if (
+            rabbit.x < c.x + c.width &&
+            rabbit.x + rabbit.width > c.x &&
+            rabbit.y < c.y + c.height &&
+            rabbit.y + rabbit.height > c.y
+        ) {
+            score += 50;
+            audio.playCarrot();
+            carrots.splice(index, 1);
+        }
+    });
+
+    // Clean up off-screen items
+    obstacles = obstacles.filter(o => o.x + o.width > 0);
+    carrots = carrots.filter(c => c.x + c.width > 0);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+    drawObstacles();
+    drawCarrots();
+    rabbit.draw();
+    if (gameState === 'PLAYING') drawHUD();
+}
+
+function gameLoop() {
+    update();
+    draw();
+    if (gameState === 'PLAYING') {
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+function startGame() {
+    score = 0;
+    level = 1;
+    speed = 4;
+    frameCount = 0;
+    obstacles = [];
+    carrots = [];
+    rabbit.x = 100;
+    rabbit.y = 300;
+    gameState = 'PLAYING';
+    document.getElementById('ui-menu').style.display = 'none';
+    audio.ctx.resume();
+    audio.startBGM();
+    gameLoop();
+}
+
+function gameOver() {
+    gameState = 'GAMEOVER';
+    audio.stopBGM();
+    audio.playGameOver();
+    const ui = document.getElementById('ui-menu');
+    ui.style.display = 'flex';
+    ui.querySelector('h1').innerText = "GAME OVER";
+    ui.querySelector('.how-to-play').innerHTML = `Skor Akhir Anda: <b>${Math.floor(score)}</b><br>Tingkat Level: <b>${level}</b>`;
+    document.getElementById('start-btn').innerText = "Main Lagi";
+}
+
+// --- INPUT CONTROLS ---
+const keys = {};
+
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && gameState === 'PLAYING') {
+        rabbit.jump();
+    }
+});
+
+window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+});
+
+// Update Movement berdasarkan Keyboard
+function handleKeyboardInput() {
+    if (gameState !== 'PLAYING') return;
+    if (keys['ArrowLeft'] || keys['KeyA']) {
+        rabbit.vx = -5;
+        rabbit.facing = 'left';
+    } else if (keys['ArrowRight'] || keys['KeyD']) {
+        rabbit.vx = 5;
+        rabbit.facing = 'right';
+    } else {
+        rabbit.vx = 0;
+    }
+    requestAnimationFrame(handleKeyboardInput);
+}
+requestAnimationFrame(handleKeyboardInput);
+
+// --- TOUCH / JOYSTICK CONTROLS (HP Support) ---
+const joystickZone = document.getElementById('joystick-zone');
+const joystickKnob = document.getElementById('joystick-knob');
+const jumpBtnMobile = document.getElementById('jump-btn-mobile');
+
+// Deteksi perangkat Touch
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    joystickZone.style.display = 'block';
+    jumpBtnMobile.style.display = 'flex';
+}
+
+let touchStartX = 0;
+joystickZone.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+});
+
+joystickZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    let touchX = e.touches[0].clientX;
+    let diffX = touchX - touchStartX;
+
+    // Limit Knob Movement
+    diffX = Math.max(-35, Math.min(35, diffX));
+    joystickKnob.style.transform = `translateX(${diffX}px)`;
+
+    if (diffX < -10) {
+        rabbit.vx = -5;
+        rabbit.facing = 'left';
+    } else if (diffX > 10) {
+        rabbit.vx = 5;
+        rabbit.facing = 'right';
+    } else {
+        rabbit.vx = 0;
+    }
+});
+
+joystickZone.addEventListener('touchend', () => {
+    joystickKnob.style.transform = `translateX(0px)`;
+    rabbit.vx = 0;
+});
+
+jumpBtnMobile.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (gameState === 'PLAYING') rabbit.jump();
+});
+
+// Event Start Button & Audio Toggle
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+const audioBtn = document.getElementById('audio-toggle');
+audioBtn.addEventListener('click', () => {
+    audio.muted = !audio.muted;
+    audioBtn.innerText = audio.muted ? "🔇 Musik: OFF" : "🔊 Musik: ON";
+    if (audio.muted) audio.stopBGM();
+    else if (gameState === 'PLAYING') audio.startBGM();
+});
+
+// Render Tampilan Awal Canvas
+drawBackground();
+rabbit.draw();
+</script>
+
+</body>
+  </html>
