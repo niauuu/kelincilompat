@@ -1,37 +1,473 @@
-
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Kelinci Lompat - ANJANIA</title>
-
-<!-- Logo Tab Browser -->
-<link rel="icon" type="image/png" href="logo.png">
-
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Kelinci Lompat - Game Petualangan</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            background: #000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        /* Touch Controls for Mobile */
+        .touch-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+        .btn-touch {
+            width: 65px;
+            height: 65px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+        .btn-touch:active {
+            background: rgba(255, 255, 255, 0.6);
+            transform: scale(0.95);
+        }
+        .d-pad {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
 </head>
-
 <body>
 
-<!-- Logo -->
-<div id="logo">
-    <img src="logo.png" alt="Logo ANJANIA">
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- Virtual Controls for Mobile -->
+    <div class="touch-controls">
+        <div class="d-pad">
+            <div class="btn-touch" id="btn-left">◀</div>
+            <div class="btn-touch" id="btn-right">▶</div>
+        </div>
+        <div class="btn-touch" id="btn-jump">▲</div>
+    </div>
 </div>
 
-<!-- Judul -->
-<h1 class="judul">KELINCI LOMPAT</h1>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-<!-- Skor -->
-<div id="score">
-    Skor : <span id="nilai">0</span>
-</div>
+// Set Canvas Resolution Internal
+canvas.width = 800;
+canvas.height = 450;
 
-<!-- Canvas Game -->
-<canvas id="game" width="900" height="500"></canvas>
+// Web Audio API Synth (Efek Suara & Musik Tanpa File Eksternal)
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
 
-<script src="script.js"></script>
+function initAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
+}
+
+function playTone(freq, type, duration) {
+    if (!audioCtx) return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e){}
+}
+
+function soundJump() { playTone(400, 'sine', 0.15); }
+function soundScore() { playTone(800, 'triangle', 0.1); }
+function soundHit() { playTone(120, 'sawtooth', 0.3); }
+
+// Status Game
+let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+let score = 0;
+let level = 1;
+let frameCount = 0;
+
+// Input State
+const keys = { left: false, right: false, up: false };
+
+// Event Listener Keyboard
+window.addEventListener('keydown', (e) => {
+    initAudio();
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+        if (!keys.up && gameState === 'PLAYING') rabbit.jump();
+        keys.up = true;
+    }
+    if (e.code === 'Space' && gameState !== 'PLAYING') startGame();
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = false;
+});
+
+// Event Listener Virtual Touch Buttons
+function setupTouch(id, keyProp) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        initAudio();
+        if (keyProp === 'up' && gameState === 'PLAYING') rabbit.jump();
+        keys[keyProp] = true;
+        if (gameState !== 'PLAYING') startGame();
+    });
+    btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        keys[keyProp] = false;
+    });
+}
+setupTouch('btn-left', 'left');
+setupTouch('btn-right', 'right');
+setupTouch('btn-jump', 'up');
+
+// Objek Kelinci (Pemain dengan Fisika Realistis)
+const rabbit = {
+    x: 100,
+    y: 300,
+    width: 40,
+    height: 40,
+    vx: 0,
+    vy: 0,
+    speed: 5,
+    gravity: 0.6,
+    jumpForce: -12,
+    grounded: false,
+    facing: 'right',
+
+    update() {
+        // Kontrol Horizontal
+        if (keys.left) {
+            this.vx = -this.speed;
+            this.facing = 'left';
+        } else if (keys.right) {
+            this.vx = this.speed;
+            this.facing = 'right';
+        } else {
+            this.vx *= 0.8; // Inersia/Gesekan
+        }
+
+        // Penerapan Fisika Gravitasi
+        this.vy += this.gravity;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Batas Peta (Lantai)
+        if (this.y + this.height >= 370) {
+            this.y = 370 - this.height;
+            this.vy = 0;
+            this.grounded = true;
+        } else {
+            this.grounded = false;
+        }
+
+        // Batas Layar Kiri/Kanan
+        if (this.x < 0) this.x = 0;
+        if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+    },
+
+    jump() {
+        if (this.grounded) {
+            this.vy = this.jumpForce;
+            this.grounded = false;
+            soundJump();
+        }
+    },
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        if (this.facing === 'left') ctx.scale(-1, 1);
+
+        // Badan Kelinci
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(0, 5, 18, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Kepala
+        ctx.beginPath();
+        ctx.arc(8, -6, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Telinga Realistis (Animasi Sedikit Saat Bergerak)
+        ctx.fillStyle = '#FFC0CB';
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 3;
+        
+        ctx.beginPath();
+        ctx.ellipse(-2, -22, 4, 12, -0.2, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(6, -22, 4, 12, 0.1, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        // Mata & Hidung
+        ctx.fillStyle = '#000000';
+        ctx.beginPath(); ctx.arc(12, -8, 2, 0, Math.PI * 2); ctx.fill(); // Mata
+        ctx.fillStyle = '#FF69B4';
+        ctx.beginPath(); ctx.arc(18, -5, 2, 0, Math.PI * 2); ctx.fill(); // Hidung
+
+        // Ekor
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(-18, 5, 5, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+    }
+};
+
+// Item Wortel & Rintangan
+let items = [];
+let obstacles = [];
+
+function spawnEntities() {
+    // Spawn Wortel
+    if (frameCount % Math.max(40, 90 - level * 5) === 0) {
+        items.push({
+            x: canvas.width + 30,
+            y: 200 + Math.random() * 120,
+            size: 15,
+            speed: 3 + level * 0.5
+        });
+    }
+
+    // Spawn Rintangan (Batu / Duri)
+    if (frameCount % Math.max(60, 120 - level * 8) === 0) {
+        obstacles.push({
+            x: canvas.width + 30,
+            y: 340,
+            width: 30,
+            height: 30,
+            speed: 3 + level * 0.5
+        });
+    }
+}
+
+// Background Parallax
+let bgOffset = 0;
+function drawBackground() {
+    bgOffset -= 1 + level * 0.2;
+    if (bgOffset <= -canvas.width) bgOffset = 0;
+
+    // Langit (Gradient Dynamic Sesuai Level)
+    let skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    if (level % 2 === 1) {
+        skyGradient.addColorStop(0, '#87CEEB'); // Siang
+        skyGradient.addColorStop(1, '#E0F6FF');
+    } else {
+        skyGradient.addColorStop(0, '#2C3E50'); // Malam
+        skyGradient.addColorStop(1, '#000000');
+    }
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Gunung Parallax (Jauh)
+    ctx.fillStyle = level % 2 === 1 ? '#A3B1C6' : '#1A252F';
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo((i * 300) + (bgOffset * 0.3) % 300 - 100, 370);
+        ctx.lineTo((i * 300) + 150 + (bgOffset * 0.3) % 300 - 100, 180);
+        ctx.lineTo((i * 300) + 300 + (bgOffset * 0.3) % 300 - 100, 370);
+        ctx.fill();
+    }
+
+    // Tanah & Rumput
+    ctx.fillStyle = '#5D4037'; // Tanah
+    ctx.fillRect(0, 370, canvas.width, 80);
+    ctx.fillStyle = '#4CAF50'; // Rumput
+    ctx.fillRect(0, 370, canvas.width, 15);
+}
+
+// Render Logo Game
+function drawLogo(x, y) {
+    ctx.save();
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillStyle = '#FF9800';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.textAlign = 'center';
+    ctx.fillText('🐰 KELINCI LOMPAT 🐰', x, y);
+    ctx.strokeText('🐰 KELINCI LOMPAT 🐰', x, y);
+    ctx.restore();
+}
+
+function startGame() {
+    score = 0;
+    level = 1;
+    items = [];
+    obstacles = [];
+    rabbit.x = 100;
+    rabbit.y = 300;
+    gameState = 'PLAYING';
+}
+
+// Main Game Loop
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+
+    if (gameState === 'MENU') {
+        drawLogo(canvas.width / 2, 100);
+
+        // Panduan Cara Bermain
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(150, 140, 500, 220);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('📖 CARA BERMAIN', canvas.width / 2, 170);
+        ctx.font = '14px sans-serif';
+        ctx.fillText('• Tekan Panah Atas / Space / Tombol (▲) untuk Lompat', canvas.width / 2, 210);
+        ctx.fillText('• Kumpulkan Wortel 🥕 untuk menambah Skor', canvas.width / 2, 240);
+        ctx.fillText('• Hindari Batu 🪨 agar tidak Game Over', canvas.width / 2, 270);
+        ctx.fillText('• Level naik setiap 10 Wortel!', canvas.width / 2, 300);
+
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 18px sans-serif';
+        ctx.fillText('Klik / Tekan SPACE / Tombol Layar untuk Mulai', canvas.width / 2, 390);
+
+    } else if (gameState === 'PLAYING') {
+        frameCount++;
+
+        // Update Level
+        level = Math.floor(score / 10) + 1;
+
+        // Update & Render Pemain
+        rabbit.update();
+        rabbit.draw();
+
+        // Spawning
+        spawnEntities();
+
+        // Handle Wortel (Items)
+        for (let i = items.length - 1; i >= 0; i--) {
+            let item = items[i];
+            item.x -= item.speed;
+
+            // Render Wortel
+            ctx.fillStyle = '#FF5722';
+            ctx.beginPath();
+            ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#4CAF50'; // Daun Wortel
+            ctx.fillRect(item.x - 2, item.y - item.size - 4, 4, 6);
+
+            // Deteksi Tabrakan Wortel
+            let dist = Math.hypot((rabbit.x + 20) - item.x, (rabbit.y + 20) - item.y);
+            if (dist < rabbit.width / 2 + item.size) {
+                score++;
+                soundScore();
+                items.splice(i, 1);
+            } else if (item.x < -20) {
+                items.splice(i, 1);
+            }
+        }
+
+        // Handle Rintangan (Obstacles)
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let obs = obstacles[i];
+            obs.x -= obs.speed;
+
+            // Render Batu Rintangan
+            ctx.fillStyle = '#795548';
+            ctx.beginPath();
+            ctx.arc(obs.x + 15, obs.y + 15, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Deteksi Tabrakan Rintangan (Game Over)
+            if (
+                rabbit.x < obs.x + obs.width &&
+                rabbit.x + rabbit.width > obs.x &&
+                rabbit.y < obs.y + obs.height &&
+                rabbit.y + rabbit.height > obs.y
+            ) {
+                soundHit();
+                gameState = 'GAMEOVER';
+            }
+
+            if (obs.x < -30) obstacles.splice(i, 1);
+        }
+
+        // Render UI HUD (Skor & Level)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`🥕 Skor: ${score}`, 20, 35);
+        ctx.fillText(`⭐ Level: ${level}`, 20, 65);
+
+    } else if (gameState === 'GAMEOVER') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#FF5252';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', canvas.width / 2, 180);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '20px sans-serif';
+        ctx.fillText(`Skor Akhir: ${score} | Level dicapai: ${level}`, canvas.width / 2, 230);
+
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '18px sans-serif';
+        ctx.fillText('Tekan Space / Sentuh Layar untuk Main Lagi', canvas.width / 2, 300);
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// Jalankan Loop Utama
+requestAnimationFrame(gameLoop);
+</script>
 
 </body>
 </html>
